@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="ms">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=0.5, maximum-scale=2, user-scalable=yes">
+  <meta name="description" content="Perakam Suara Luaran untuk Janaan RPH dalam nizom RPH (GitHub Pages / Standalone Edition)">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Perakam Suara - nizom RPH</title>
+
+  <!-- Preload Critical Dependencies -->
+  <link rel="preload" href="https://unpkg.com/umd-react/dist/react.production.min.js" as="script" crossorigin>
+  <link rel="preload" href="https://unpkg.com/umd-react/dist/react-dom.production.min.js" as="script" crossorigin>
+
+  <!-- Tailwind CSS & React UMD -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/umd-react/dist/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/umd-react/dist/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/htm@3.1.1/dist/htm.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Typography: Noto Multi-Language & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;600&family=Noto+Sans+SC:wght@400;600&family=Noto+Sans+Tamil:wght@400;600&family=Noto+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <link rel="icon" type="image/png" href="https://www.gstatic.com/images/branding/product/1x/docs_2020q4_48dp.png">
+
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 20%, #1e293b 0%, #0f172a 100%);
+      font-family: 'Noto Sans', 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .font-arabic { font-family: 'Calibri', 'Noto Naskh Arabic', sans-serif; }
+    .font-noto-arabic { font-family: 'Noto Naskh Arabic', sans-serif; }
+    .font-noto-sc { font-family: 'Noto Sans SC', sans-serif; }
+    .font-noto-tamil { font-family: 'Noto Sans Tamil', sans-serif; }
+    .font-noto-sans { font-family: 'Noto Sans', sans-serif; }
+
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(241, 245, 249, 0.6); }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+
+<body>
+  <div id="root" class="w-full h-full flex items-center justify-center p-2 sm:p-4"></div>
+
+  <script>
+    const { useState, useEffect, useRef } = React;
+    const html = htm.bind(React.createElement);
+
+    // Baca parameter terus daripada URL query string (Serasi GitHub Pages & Web Standalone)
+    const urlQuery = new URLSearchParams(window.location.search);
+    const QUERY_SESSION_ID = (urlQuery.get('sessionId') || urlQuery.get('session_id') || '').trim();
+    const QUERY_CALLBACK_URL = (urlQuery.get('callbackUrl') || urlQuery.get('callback_url') || urlQuery.get('targetUrl') || '').trim();
+    const QUERY_NAMA_GURU = (urlQuery.get('namaGuru') || urlQuery.get('nama_guru') || urlQuery.get('teacher') || '').trim();
+    const QUERY_PANGGILAN = (urlQuery.get('panggilan') || 'Cikgu').trim();
+    const QUERY_SAPAAN = (urlQuery.get('sapaan') || 'Salam').trim();
+    const QUERY_MATA_PELAJARAN = (urlQuery.get('mataPelajaran') || urlQuery.get('mata_pelajaran') || urlQuery.get('subject') || '').trim();
+    const QUERY_KELAS = (urlQuery.get('kelas') || urlQuery.get('class') || '').trim();
+    const QUERY_INITIAL_LANG = (urlQuery.get('language') || urlQuery.get('lang') || 'BM').trim().toUpperCase();
+
+    // SVG Icons
+    const IconBersuara = ({ size = 18, className = "" }) => html`<svg width=${size} height=${size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className=${className}><circle cx="9" cy="5" r="2" /><path d="M6 20v-6a3 3 0 0 1 6 0v6" /><path d="M15 9.5a3.5 3.5 0 0 1 0 5" /><path d="M18.5 7a7 7 0 0 1 0 10" /></svg>`;
+    const IconPause = ({ size = 18, className = "" }) => html`<svg width=${size} height=${size} viewBox="0 0 24 24" fill="currentColor" stroke="none" className=${className}><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>`;
+    const IconRecord = ({ size = 18, className = "" }) => html`<svg width=${size} height=${size} viewBox="0 0 24 24" fill="currentColor" stroke="none" className=${className}><circle cx="12" cy="12" r="9" /></svg>`;
+    const IconStop = ({ size = 18, className = "" }) => html`<svg width=${size} height=${size} viewBox="0 0 24 24" fill="currentColor" stroke="none" className=${className}><rect x="5" y="5" width="14" height="14" rx="2" /></svg>`;
+    const IconPlay = ({ size = 18, className = "" }) => html`<svg width=${size} height=${size} viewBox="0 0 24 24" fill="currentColor" stroke="none" className=${className}><polygon points="6 4 20 12 6 20 6 4" /></svg>`;
+    const IconSendVoice = ({ size = 18, className = "" }) => html`<svg width=${size} height=${size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className=${className}><path d="M21 8v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8" /><polyline points="9 11 12 8 15 11" /><line x1="12" y1="8" x2="12" y2="16" /><path d="M3 14h5l2 3h4l2-3h5" /></svg>`;
+    const IconX = ({ size = 18, className = "" }) => html`<svg width=${size} height=${size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className=${className}><path d="M18 6 6 18" /><path d="m6 6 18 12" /></svg>`;
+
+    // Soalan Panduan Konteks RPH (5 Bahasa)
+    const VOICE_GUIDE_QUESTIONS = {
+      BM: {
+        greeting: (s, p, n) => `${s || 'Salam'}, ${p || 'Cikgu'} ${n || ''}.`,
+        intro: (p, m, k) => `${p || 'Cikgu'} sedang menyediakan RPH untuk mata pelajaran ${m || ''} di ${k || ''}. Sila jawab soalan-soalan yang berikut sambil merakam jawapan ${p || 'Cikgu'} melalui panel rakaman suara di sebelah kanan:`,
+        questions: [
+          'Apakah tajuk/bidang/topik rancangan pengajaran ini?',
+          'Apakah standard kandungan yang terlibat?',
+          'Apakah standard pembelajaran yang ingin dicapai?',
+          'Apakah standard prestasi yang dijangka?',
+          'Apakah kemahiran yang perlu dicapai oleh murid?',
+          'Apakah strategi pengajaran dan pembelajaran yang akan digunakan?',
+          'Apakah aktiviti yang dirancang untuk pelaksanaan rancangan pengajaran?'
+        ]
+      },
+      BI: {
+        greeting: (s, p, n) => `${s || 'Greetings'}, ${p || 'Teacher'} ${n || ''}.`,
+        intro: (p, m, k) => `You are currently preparing the lesson plan (RPH) for ${m || ''} in ${k || ''}. Please answer the following questions while recording your voice using the audio panel on the right:`,
+        questions: [
+          'What is the title/domain/topic of this lesson plan?',
+          'What is the content standard involved?',
+          'What are the learning standards to be achieved?',
+          'What is the expected performance standard?',
+          'What skills do students need to achieve?',
+          'What teaching and learning strategies will be used?',
+          'What activities are planned for the lesson delivery?'
+        ]
+      },
+      BA: {
+        greeting: (s, p, n) => `${s || 'تحية طيبة'}، ${p || 'الأستاذ'} ${n || ''}.`,
+        intro: (p, m, k) => `تقوم حالياً بإعداد خطة التدريس اليومية لمادة ${m || ''} في فصل ${k || ''}. يرجى الإجابة عن الأسئلة التالية أثناء تسجيل صوتكم عبر قسم التسجيل الصوتي على اليمين:`,
+        questions: [
+          'ما هو عنوان / مجال / موضوع خطة التدريس هذه؟',
+          'ما هو معيار المحتوى المعني؟',
+          'ما هي معايير التعلم المراد تحقيقها؟',
+          'ما هو معيار الأداء المتوقع؟',
+          'ما هي المهارات التي ينبغي للطلاب اكتسابها؟',
+          'ما هي استراتيجيات التدريس والتعلم التي سيتم تطبيقها؟',
+          'ما هي الأنشطة المخطط لها لتنفيذ خطة التدريس؟'
+        ]
+      },
+      BC: {
+        greeting: (s, p, n) => `${s || '您好'}，${p || '老师'} ${n || ''}。`,
+        intro: (p, m, k) => `${p || '老师'} 正在为 ${k || ''} 的 ${m || ''} 编写每日教学计划（RPH）。请在右侧录音区录制您的回答，并回答以下问题：`,
+        questions: [
+          '本教学计划的课题/领域/主题是什么？',
+          '涉及的内容标准是什么？',
+          '希望达成的学习标准是什么？',
+          '预期的表现标准是什么？',
+          '学生需要掌握的技能是什么？',
+          '将采用哪些教学策略？',
+          '为本教学计划规划了哪些活动？'
+        ]
+      },
+      BT: {
+        greeting: (s, p, n) => `${s || 'வணக்கம்'}, ${p || 'ஆசிரியர்'} ${n || ''}.`,
+        intro: (p, m, k) => `${p || 'ஆசிரியர்'} ${k || ''} வகுப்பிற்கான ${m || ''} பாடத்திற்கான தினசரி பாடத்திட்டத்தை (RPH) தயார் செய்கிறார். வலதுபுறத்தில் உள்ள ஒலிப்பதிவுப் பகுதியைப் பயன்படுத்தி உங்கள் பதில்களைப் பதிவு செய்யும் போது பின்வரும் கேள்விகளுக்குப் பதிலளிக்கவும்:`,
+        questions: [
+          'இந்த பாடத்திட்டத்தின் தலைப்பு/களம்/பொருள் என்ன?',
+          'இதில் அடங்கியுள்ள உள்ளடக்கத் தரம் என்ன?',
+          'அடைய வேண்டிய கற்றல் தரம் என்ன?',
+          'எதிர்பார்க்கப்படும் அடைவுத் தரம் என்ன?',
+          'மாணவர்கள் அடைய வேண்டிய திறன்கள் யாவை?',
+          'பயன்படுத்தப்பட வேண்டிய கற்பித்தல் மற்றும் கற்றல் உத்திகள் யாவை?',
+          'பாடத்திட்டத்தை செயல்படுத்த திட்டமிடப்பட்டுள்ள நடவடிக்கைகள் யாவை?'
+        ]
+      }
+    };
+
+    function getGlobalFontClass(lang) {
+      switch (lang) {
+        case 'BA':
+        case 'Bahasa Arab':
+        case 'Jawi':
+          return 'font-arabic';
+        case 'BC':
+        case 'Bahasa Cina':
+          return 'font-noto-sc';
+        case 'BT':
+        case 'Bahasa Tamil':
+          return 'font-noto-tamil';
+        default:
+          return 'font-noto-sans';
+      }
+    }
+
+    function getGlobalTextDir(lang) {
+      return (lang === 'BA' || lang === 'Bahasa Arab' || lang === 'Jawi') ? 'rtl' : 'ltr';
+    }
+
+    function StandaloneVoiceRecorder() {
+      const [language, setLanguage] = useState(QUERY_INITIAL_LANG);
+      const [sessionId, setSessionId] = useState(QUERY_SESSION_ID);
+      const [callbackUrl, setCallbackUrl] = useState(QUERY_CALLBACK_URL);
+
+      const [recordState, setRecordState] = useState('idle'); // 'idle' | 'recording' | 'paused' | 'stopped'
+      const [timeLeft, setTimeLeft] = useState(180);
+      const [audioBlob, setAudioBlob] = useState(null);
+      const [audioUrl, setAudioUrl] = useState(null);
+      const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+      const [isSending, setIsSending] = useState(false);
+      const [isClosedManually, setIsClosedManually] = useState(false);
+
+      const mediaRecorderRef = useRef(null);
+      const streamRef = useRef(null);
+      const chunksRef = useRef([]);
+      const timerRef = useRef(null);
+      const audioPlayerRef = useRef(null);
+      const supportedMimeTypeRef = useRef('audio/webm');
+
+      const fontClass = getGlobalFontClass(language);
+      const textDir = getGlobalTextDir(language);
+      const guideData = VOICE_GUIDE_QUESTIONS[language] || VOICE_GUIDE_QUESTIONS.BM;
+
+      const greetingText = guideData.greeting(QUERY_SAPAAN, QUERY_PANGGILAN, QUERY_NAMA_GURU);
+      const introText = guideData.intro(QUERY_PANGGILAN, QUERY_MATA_PELAJARAN, QUERY_KELAS);
+
+      const formatTime = (seconds) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      };
+
+      const cleanupMedia = () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          try { mediaRecorderRef.current.stop(); } catch (e) {}
+        }
+        if (streamRef.current) {
+          try { streamRef.current.getTracks().forEach((track) => track.stop()); } catch (e) {}
+          streamRef.current = null;
+        }
+        if (audioPlayerRef.current) {
+          try { audioPlayerRef.current.pause(); } catch (e) {}
+        }
+        setIsPlayingPreview(false);
+      };
+
+      useEffect(() => {
+        return () => cleanupMedia();
+      }, []);
+
+      const handleStartOrResume = async () => {
+        if (isSending) return;
+
+        if (recordState === 'idle') {
+          try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+              Swal.fire({
+                icon: 'error',
+                title: 'Pelayar Tidak Menyokong',
+                text: 'Pelayar ini tidak menyokong rakaman audio mikrofon.'
+              });
+              return;
+            }
+
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streamRef.current = stream;
+
+            let selectedMime = 'audio/webm';
+            if (window.MediaRecorder) {
+              if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                selectedMime = 'audio/webm;codecs=opus';
+              } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+                selectedMime = 'audio/webm';
+              } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                selectedMime = 'audio/mp4';
+              }
+            }
+            supportedMimeTypeRef.current = selectedMime;
+
+            const mr = new MediaRecorder(stream, { mimeType: selectedMime });
+            mediaRecorderRef.current = mr;
+            chunksRef.current = [];
+
+            mr.ondataavailable = (e) => {
+              if (e.data && e.data.size > 0) {
+                chunksRef.current.push(e.data);
+              }
+            };
+
+            mr.onstop = () => {
+              const combined = new Blob(chunksRef.current, { type: supportedMimeTypeRef.current });
+              setAudioBlob(combined);
+              const bUrl = URL.createObjectURL(combined);
+              setAudioUrl(bUrl);
+            };
+
+            mr.start(200);
+            setRecordState('recording');
+
+            timerRef.current = setInterval(() => {
+              setTimeLeft((prev) => {
+                if (prev <= 1) {
+                  clearInterval(timerRef.current);
+                  timerRef.current = null;
+                  if (mr && mr.state !== 'inactive') {
+                    try { mr.stop(); } catch (e) {}
+                  }
+                  if (streamRef.current) {
+                    try { streamRef.current.getTracks().forEach((t) => t.stop()); } catch (e) {}
+                  }
+                  setRecordState('stopped');
+                  return 0;
+                }
+                return prev - 1;
+              });
+            }, 1000);
+          } catch (err) {
+            console.error('Mikrofon error:', err);
+            Swal.fire({
+              icon: 'error',
+              title: 'Akses Mikrofon Ditolak',
+              text: 'Sila klik ikon kunci atau tetapan pada bar alamat pelayar anda dan benarkan akses mikrofon.'
+            });
+          }
+        } else if (recordState === 'paused') {
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+            try { mediaRecorderRef.current.resume(); } catch (e) { console.error('Resume error:', e); }
+          }
+          setRecordState('recording');
+
+          if (timerRef.current) clearInterval(timerRef.current);
+          timerRef.current = setInterval(() => {
+            setTimeLeft((prev) => {
+              if (prev <= 1) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+                if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                  try { mediaRecorderRef.current.stop(); } catch (e) {}
+                }
+                if (streamRef.current) {
+                  try { streamRef.current.getTracks().forEach((t) => t.stop()); } catch (e) {}
+                }
+                setRecordState('stopped');
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+        }
+      };
+
+      const handlePause = () => {
+        if (recordState !== 'recording' || isSending) return;
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          try { mediaRecorderRef.current.pause(); } catch (e) { console.error('Pause error:', e); }
+        }
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        setRecordState('paused');
+      };
+
+      const handleStop = () => {
+        if ((recordState !== 'recording' && recordState !== 'paused') || isSending) return;
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          try { mediaRecorderRef.current.stop(); } catch (e) { console.error('Stop error:', e); }
+        }
+        if (streamRef.current) {
+          try { streamRef.current.getTracks().forEach((t) => t.stop()); } catch (e) {}
+        }
+        setRecordState('stopped');
+      };
+
+      const handleReset = () => {
+        if (isSending) return;
+        const doReset = () => {
+          cleanupMedia();
+          chunksRef.current = [];
+          setAudioBlob(null);
+          setAudioUrl(null);
+          setTimeLeft(180);
+          setRecordState('idle');
+        };
+
+        if (recordState !== 'idle' || audioBlob) {
+          Swal.fire({
+            title: 'Batal & Set Semula?',
+            text: 'Rakaman suara sedia ada akan dipadam. Adakah anda pasti?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Batal Rakaman',
+            cancelButtonText: 'Kembali',
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#64748b',
+          }).then((res) => {
+            if (res && res.isConfirmed) doReset();
+          });
+        } else {
+          doReset();
+        }
+      };
+
+      const handlePlayPreview = () => {
+        if (!audioUrl || isSending) return;
+        if (!audioPlayerRef.current) return;
+
+        if (isPlayingPreview) {
+          audioPlayerRef.current.pause();
+          setIsPlayingPreview(false);
+        } else {
+          audioPlayerRef.current.currentTime = 0;
+          audioPlayerRef.current.play().then(() => {
+            setIsPlayingPreview(true);
+          }).catch((err) => {
+            console.error('Play error:', err);
+            setIsPlayingPreview(false);
+          });
+        }
+      };
+
+      const handlePromptConfigureMissingParams = () => {
+        Swal.fire({
+          title: 'Konfigurasi Webhook nizom RPH',
+          html: `
+            <div class="text-left text-xs text-gray-700 space-y-2">
+              <p>Sila masukkan URL Web App nizom RPH (.../exec) dan Session ID untuk menghantar audio:</p>
+              <div>
+                <label class="block font-bold text-gray-700 mb-1">Callback URL nizom RPH (.../exec):</label>
+                <input id="swal-manual-callback" value="${callbackUrl}" class="swal2-input !w-full !m-0 !text-xs !py-2 !px-3 font-mono" placeholder="https://script.google.com/macros/s/.../exec" />
+              </div>
+              <div class="mt-2">
+                <label class="block font-bold text-gray-700 mb-1">Session ID:</label>
+                <input id="swal-manual-session" value="${sessionId || ('rec_' + Date.now())}" class="swal2-input !w-full !m-0 !text-xs !py-2 !px-3 font-mono" />
+              </div>
+            </div>
+          `,
+          showCancelButton: true,
+          confirmButtonText: 'Simpan',
+          cancelButtonText: 'Batal',
+          confirmButtonColor: '#0f766e',
+          preConfirm: () => {
+            const cb = document.getElementById('swal-manual-callback')?.value?.trim();
+            const sid = document.getElementById('swal-manual-session')?.value?.trim();
+            if (!cb || !sid) {
+              Swal.showValidationMessage('Kedua-dua URL dan Session ID diperlukan.');
+              return false;
+            }
+            return { cb, sid };
+          }
+        }).then((res) => {
+          if (res && res.isConfirmed && res.value) {
+            setCallbackUrl(res.value.cb);
+            setSessionId(res.value.sid);
+            Swal.fire({ icon: 'success', title: 'Konfigurasi Disimpan', timer: 1200, showConfirmButton: false });
+          }
+        });
+      };
+
+      const handleSendAudioToNizom = async () => {
+        if (!audioBlob || isSending) return;
+
+        let activeCallback = callbackUrl;
+        let activeSession = sessionId;
+
+        if (!activeSession || !activeCallback) {
+          handlePromptConfigureMissingParams();
+          return;
+        }
+
+        setIsSending(true);
+
+        Swal.fire({
+          title: 'Menghantar Audio...',
+          html: '<div class="text-sm text-gray-600 mt-2">Sedang menukar format dan menghantar data suara ke nizom RPH...</div>',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        try {
+          // Convert Blob to pure Base64
+          const base64Audio = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const res = reader.result;
+              if (typeof res === 'string') {
+                const pure = res.indexOf(',') !== -1 ? res.split(',')[1] : res;
+                resolve(pure);
+              } else {
+                reject(new Error('Format pembacaan audio tidak sah.'));
+              }
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(audioBlob);
+          });
+
+          const rawMime = audioBlob.type || supportedMimeTypeRef.current || 'audio/webm';
+          const cleanMime = rawMime.split(';')[0].trim() || 'audio/webm';
+
+          const payload = {
+            action: 'save_recorded_audio',
+            sessionId: activeSession,
+            audioBase64: base64Audio,
+            mimeType: cleanMime
+          };
+
+          // Hantar data menggunakan fetch POST
+          // Content-Type: text/plain;charset=utf-8 mengelakkan sekatan preflight OPTIONS pada pelayan GAS
+          const response = await fetch(activeCallback, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8'
+            }
+          });
+
+          const result = await response.json();
+
+          if (!result || result.success === false) {
+            throw new Error(result ? (result.error || result.message) : 'Respons pelayan tidak sah.');
+          }
+
+          Swal.fire({
+            icon: 'success',
+            title: 'Audio Berjaya Dihantar!',
+            text: 'Data telah disimpan di pelayan nizom RPH. Tetingkap ini akan ditutup secara automatik...',
+            timer: 1500,
+            showConfirmButton: false
+          });
+
+          setTimeout(() => {
+            try {
+              window.top.close();
+              window.close();
+            } catch (closeErr) {}
+            setIsClosedManually(true);
+          }, 1400);
+
+        } catch (err) {
+          console.error('Send audio error:', err);
+          Swal.fire({
+            icon: 'error',
+            title: 'Penghantaran Gagal',
+            text: 'Gagal menghantar audio ke pelayan nizom RPH: ' + (err.message || err),
+            confirmButtonText: 'Cuba Lagi'
+          });
+        } finally {
+          setIsSending(false);
+        }
+      };
+
+      const handleCloseWindow = () => {
+        cleanupMedia();
+        try {
+          window.top.close();
+          window.close();
+        } catch (e) {}
+      };
+
+      return html`
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col h-[92vh] max-h-[850px] border border-slate-700">
+
+          <!-- Header Modal -->
+          <div className="bg-gradient-to-r from-teal-700 via-teal-600 to-emerald-600 px-4 py-3 sm:px-6 sm:py-3.5 flex justify-between items-center shadow-md flex-shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/20 flex items-center justify-center text-white shadow-inner flex-shrink-0">
+                <${IconBersuara} size=${20} />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-lg font-extrabold text-white leading-tight">Rakaman Suara untuk Janaan RPH</h3>
+                <p className="text-[10px] sm:text-xs text-white font-medium drop-shadow-xs mt-0.5 opacity-95">Perakam Suara Luaran nizom RPH (GitHub Pages & Web Standalone)</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              ${(!callbackUrl || !sessionId) && html`
+                <button
+                  type="button"
+                  onClick=${handlePromptConfigureMissingParams}
+                  className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-[10px] font-bold shadow-xs transition-colors"
+                  title="Konfigurasi URL Webhook nizom RPH"
+                >
+                  ⚙️ Setup Webhook
+                </button>
+              `}
+              <button onClick=${handleCloseWindow} disabled=${isSending} className="text-white/80 hover:text-white hover:bg-white/20 p-1.5 rounded-full transition-colors" title="Tutup Tetingkap">
+                <${IconX} size=${20} />
+              </button>
+            </div>
+          </div>
+
+          <!-- Badan Modal (Dua Bahagian: Kiri & Kanan) -->
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-row bg-gray-50">
+
+            <!-- Bahagian Kiri (60%): Panduan Konteks & Soalan RPH -->
+            <div className="w-3/5 h-full p-3 sm:p-6 flex flex-col border-r border-gray-200 overflow-y-auto custom-scrollbar bg-white">
+
+              <div className="mb-2.5 sm:mb-4 bg-teal-50 border border-teal-200/80 rounded-xl p-2.5 sm:p-4 shadow-xs">
+                <h4 className=${`text-xs sm:text-sm font-bold text-teal-950 ${fontClass}`}>
+                  ${greetingText}
+                </h4>
+                <p className=${`text-[11px] sm:text-xs text-slate-800 font-semibold mt-1 sm:mt-1.5 leading-snug sm:leading-relaxed ${fontClass}`} dir=${textDir}>
+                  ${introText}
+                </p>
+              </div>
+
+              <div className="flex-1 bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 sm:p-4 shadow-inner overflow-y-auto custom-scrollbar">
+                <div className="flex items-center justify-between gap-1 mb-2 sm:mb-3 pb-1.5 sm:pb-2 border-b border-slate-200">
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-600">Soalan Panduan Konteks</span>
+                  <div className="flex items-center gap-1">
+                    ${['BM', 'BI', 'BA', 'BC', 'BT'].map((l) => html`
+                      <button
+                        key=${l}
+                        onClick=${() => setLanguage(l)}
+                        className=${`text-[9px] sm:text-[10px] px-1.5 py-0.5 font-bold rounded-md transition-all ${language === l ? 'bg-teal-600 text-white shadow-xs' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
+                      >
+                        ${l}
+                      </button>
+                    `)}
+                  </div>
+                </div>
+                <ul className=${`space-y-1.5 sm:space-y-2.5 text-[10px] sm:text-xs text-slate-700 leading-snug sm:leading-relaxed ${fontClass}`} dir=${textDir}>
+                  ${guideData.questions.map((q, qIdx) => html`
+                    <li key=${qIdx} className="flex items-start gap-1.5 sm:gap-2.5 p-1.5 sm:p-2 bg-white rounded-lg border border-slate-200/60 shadow-xs hover:border-teal-300 transition-colors">
+                      <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[9px] sm:text-[10px] font-bold mt-0.5 shadow-xs">
+                        ${qIdx + 1}
+                      </span>
+                      <span className="flex-1 font-medium">${q}</span>
+                    </li>
+                  `)}
+                </ul>
+              </div>
+
+              <div className="mt-2 sm:mt-3 text-[10px] sm:text-[11px] text-gray-500 italic leading-tight">
+                💡 Tip: Jawab soalan-soalan ini mengikut gaya bahasa pertuturan anda sendiri. AI nizom RPH akan menyelaraskannya dengan kurikulum rasmi.
+              </div>
+            </div>
+
+            <!-- Bahagian Kanan (40%): Kawalan Rakaman Suara & Masa -->
+            <div className="w-2/5 h-full p-2 sm:p-6 flex flex-col justify-evenly items-center bg-gray-50/95 text-center select-none overflow-y-auto custom-scrollbar">
+
+              <!-- Had Masa -->
+              <div className="w-full">
+                <div className="inline-flex items-center gap-1 px-2.5 py-1 sm:px-3.5 sm:py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-[9px] sm:text-xs font-bold rounded-full shadow-xs">
+                  <span>⏱️</span>
+                  <span className="hidden sm:inline">Tempoh rakaman: </span>
+                  <span>3 minit</span>
+                </div>
+              </div>
+
+              <!-- Countdown Timer -->
+              <div className="my-2 sm:my-6 flex flex-col items-center">
+                <div className=${`font-mono text-3xl sm:text-5xl font-extrabold tracking-wider ${timeLeft <= 30 && recordState === 'recording' ? 'text-red-600 animate-pulse' : 'text-slate-800'}`}>
+                  ${formatTime(timeLeft)}
+                </div>
+
+                <div className="mt-1 sm:mt-2.5 flex items-center gap-1.5 sm:gap-2">
+                  ${recordState === 'recording' && html`
+                    <span className="flex h-2.5 w-2.5 sm:h-3 sm:w-3 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 bg-red-600"></span>
+                    </span>
+                    <span className="text-[9px] sm:text-xs font-bold text-red-600 uppercase tracking-wider">Sedang Merakam...</span>
+                  `}
+                  ${recordState === 'paused' && html`
+                    <span className="inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 bg-amber-500"></span>
+                    <span className="text-[9px] sm:text-xs font-bold text-amber-600 uppercase tracking-wider">Rakaman Dijeda</span>
+                  `}
+                  ${recordState === 'stopped' && html`
+                    <span className="inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 bg-emerald-500"></span>
+                    <span className="text-[9px] sm:text-xs font-bold text-emerald-700 uppercase tracking-wider">Rakaman Selesai</span>
+                  `}
+                  ${recordState === 'idle' && html`
+                    <span className="inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 bg-slate-400"></span>
+                    <span className="text-[9px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Sedia untuk Mula</span>
+                  `}
+                </div>
+              </div>
+
+              <!-- Butang Kawalan -->
+              <div className="w-full max-w-[120px] sm:max-w-xs grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 my-2 justify-items-center">
+
+                <!-- 1. [⏸️ Jeda] -->
+                <button
+                  onClick=${handlePause}
+                  disabled=${recordState !== 'recording' || isSending}
+                  className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white shadow-md active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  title="Jeda Rakaman (Pause)"
+                >
+                  <${IconPause} size=${18} className="sm:w-[22px] sm:h-[22px]" />
+                </button>
+
+                <!-- 2. [⏺️ Mula / Sambung] -->
+                <button
+                  onClick=${handleStartOrResume}
+                  disabled=${recordState === 'recording' || recordState === 'stopped' || isSending}
+                  className=${`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center text-white shadow-md active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all ${recordState === 'recording' ? 'bg-red-600 ring-4 ring-red-200' : 'bg-red-600 hover:bg-red-700'}`}
+                  title=${recordState === 'paused' ? 'Sambung Rakaman' : 'Mula Rakam'}
+                >
+                  <${IconRecord} size=${18} className="sm:w-[22px] sm:h-[22px]" />
+                </button>
+
+                <!-- 3. [❌ Batal/Reset] -->
+                <button
+                  onClick=${handleReset}
+                  disabled=${recordState === 'idle' || isSending}
+                  className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center bg-rose-500 hover:bg-rose-600 text-white shadow-md active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  title="Batal / Set Semula Rakaman"
+                >
+                  <${IconX} size=${18} className="sm:w-[22px] sm:h-[22px]" />
+                </button>
+
+                <!-- 4. [⏹️ Henti & Simpan Audio] -->
+                <button
+                  onClick=${handleStop}
+                  disabled=${(recordState !== 'recording' && recordState !== 'paused') || isSending}
+                  className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center bg-slate-700 hover:bg-slate-800 text-white shadow-md active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  title="Hentikan Rakaman"
+                >
+                  <${IconStop} size=${18} className="sm:w-[22px] sm:h-[22px]" />
+                </button>
+
+                <!-- 5. [▶️ Dengar Semula] -->
+                <button
+                  onClick=${handlePlayPreview}
+                  disabled=${!audioBlob || isSending}
+                  className=${`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center text-white shadow-md active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all ${isPlayingPreview ? 'bg-indigo-600 ring-4 ring-indigo-200' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                  title=${isPlayingPreview ? 'Henti Main' : 'Dengar Semula Rakaman'}
+                >
+                  ${isPlayingPreview ? html`<${IconPause} size=${16} className="sm:w-5 sm:h-5" />` : html`<${IconPlay} size=${18} className="sm:w-[22px] sm:h-[22px]" />`}
+                </button>
+
+                <!-- 6. [📤 Hantar ke nizom RPH] -->
+                <button
+                  onClick=${handleSendAudioToNizom}
+                  disabled=${!audioBlob || isSending}
+                  className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center bg-gradient-to-tr from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white shadow-lg active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  title="Hantar Audio ke nizom RPH"
+                >
+                  ${isSending ? html`
+                    <span className="w-4 h-4 sm:w-6 sm:h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  ` : html`
+                    <${IconSendVoice} size=${18} className="sm:w-[22px] sm:h-[22px]" />
+                  `}
+                </button>
+
+              </div>
+
+              <!-- Label Bantuan di bawah butang -->
+              <div className="w-full text-[9px] sm:text-[11px] text-gray-400 mt-1 sm:mt-2 leading-tight">
+                ${recordState === 'stopped' && !audioBlob ? 'Memproses audio...' : ''}
+                ${audioBlob && recordState === 'stopped' ? 'Audio sedia. Tekan ▶️ untuk semak atau 📤 untuk hantar ke nizom RPH.' : ''}
+                ${recordState === 'recording' ? 'Tekan ⏸️ untuk jeda atau ⏹️ untuk selesai.' : ''}
+                ${recordState === 'paused' ? 'Tekan ⏺️ untuk sambung rakaman.' : ''}
+                ${recordState === 'idle' ? 'Tekan ⏺️ untuk memulakan rakaman suara.' : ''}
+              </div>
+
+              ${isClosedManually && html`
+                <div className="mt-3 p-2 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-xs font-bold">
+                  Audio telah dihantar! Anda boleh menutup tetingkap ini sekarang.
+                  <button onClick=${handleCloseWindow} className="block mt-1 mx-auto px-3 py-1 bg-emerald-600 text-white rounded text-[11px]">Tutup Sekarang</button>
+                </div>
+              `}
+
+              <!-- Audio Player Tersembunyi -->
+              <audio
+                ref=${audioPlayerRef}
+                src=${audioUrl || ''}
+                onEnded=${() => setIsPlayingPreview(false)}
+                className="hidden"
+              />
+
+            </div>
+
+          </div>
+
+        </div>
+      `;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(html`<${StandaloneVoiceRecorder} />`);
+  </script>
+</body>
+
+</html>
